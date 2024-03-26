@@ -1,19 +1,50 @@
-import React, {useState} from "react";
+import React, { useState } from "react";
 import "./SearchBar.css";
 
-import {FaSearch} from 'react-icons/fa'
+import { FaSearch } from 'react-icons/fa';
 
-export const SearchBar = () => {
+export const SearchBar = ({ setResults }) => {
     const [input, setInput] = useState("");
 
-    const fetchData = (value) => {
-        
-    }
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            search(input);
+        }
+    };
 
-    return <div className="input-wrapper">
-        <FaSearch id="search-icon"/>
-        {/* <script async src="https://cse.google.com/cse.js?cx=7312e2f7473b445d3"></script> */}
-        <div class="gcse-search"></div>
-        <input placeholder="Type to search..." value={input} onChange={(e) => setInput(e.target.value)}/>
-    </div>;
-}
+    const search = (query) => {
+        fetch('http://localhost:5000/search', {  // Update the URL to point to your Flask server
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ query })
+        })
+        .then(response => response.json())
+        .then(data => {
+            setResults(data);
+        })
+        .catch(error => {
+            console.error('Error searching:', error);
+        });
+    };
+
+    return (
+        <div className="orient">
+            <div>
+                <h1>MediFinds</h1>
+            </div>
+            <div className="input-wrapper">
+                <FaSearch id="search-icon"/>
+                <div className="gcse-search"></div>
+                <input 
+                    placeholder="Type to search..." 
+                    value={input} 
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                />
+            </div>
+        </div>
+        
+    );
+};
