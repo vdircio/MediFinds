@@ -34,7 +34,7 @@ export const SearchBar = ({ setResults }) => {
             <div>
                 <h1>MediFinds</h1>
                 <h2>A medical text summarization tool</h2>
-                <h3>Needs to be optimized (wait around a minute)</h3>
+                <h3>Needs to be optimized (wait around a minute / under progress)</h3>
             </div>
             <div className="input-wrapper">
                 <FaSearch id="search-icon"/>
