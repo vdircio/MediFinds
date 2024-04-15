@@ -15,9 +15,9 @@ from nltk.corpus import stopwords
 import nltk
 
 
-nltk.download('punkt')
-stemmer = PorterStemmer()
-nltk.download('stopwords')
+# nltk.download('punkt')
+# stemmer = PorterStemmer()
+# nltk.download('stopwords')
 
 
 app = Flask(__name__)
