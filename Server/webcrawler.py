@@ -9,6 +9,15 @@ import json
 from googleapiclient.discovery import build
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
+from nltk.stem import *
+from nltk.stem.porter import *
+from nltk.corpus import stopwords
+import nltk
+
+
+nltk.download('punkt')
+stemmer = PorterStemmer()
+nltk.download('stopwords')
 
 
 app = Flask(__name__)
@@ -27,7 +36,6 @@ def search():
     if not results:
         return jsonify({'error': 'No search results found'}), 404
         
-    
     return jsonify(results)
 
 
@@ -60,6 +68,33 @@ def scrape(url):
         article_texts.append(section_text)
 
     return title, article_texts[0] if article_texts else ''
+
+# # We can Tokenize all sentences as elements of a list using sent_tokenize
+# # Unfortunately Headers will be included
+# # Works perfectly for article gathered from source
+# # Only Leaves Sentences inlcluded in Abstract
+# def Remove_Headers(text):
+#   sentences = (nltk.sent_tokenize(text))
+#   for i in range(len(sentences)):
+#     index = 0
+#     presence = False
+#     for j in range(len(sentences[i])):
+#       if (sentences[i][j] == "\n"):
+#         index = j
+#         presence = True
+#     if (presence and i == 0):
+#       sentences[i] = (sentences[i][index + 1:])
+#       presence = False
+#       index = 0
+#     if (presence and i != 0):
+#       sentences = sentences[0:i]
+#       break
+#   return sentences
+
+# abstract_sentences = Remove_Headers(first_art)
+# print(abstract_sentences)
+
+
 
 if __name__ == '__main__':  
    app.run(debug=True)
