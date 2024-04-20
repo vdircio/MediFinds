@@ -16,7 +16,6 @@ from transformers import AutoTokenizer
 from transformers import AutoModelWithLMHead
 tokenizer = AutoTokenizer.from_pretrained('t5-base')
 model = AutoModelWithLMHead.from_pretrained('t5-base', return_dict=True)
-
 import re
 
 
@@ -124,6 +123,24 @@ def collection_LM(list_of_abs):
     return sorted_dict, bag_of_words
 
 
+def summarize(summaries):
+    final_sums = []
+    for summary in summaries:
+        text = ""
+        for j in summary:
+            text += j.capitalize()
+        inputs = tokenizer.encode("summarize: " + text, return_tensors='pt', max_length=512, truncation=True)
+        summary_ids = model.generate(inputs, max_length=60, min_length=20, length_penalty=5., num_beams=2)
+        summary = tokenizer.decode(summary_ids[0])
+        final_sums.append(summary)
+    
+    # final_sums.pop()
+
+    for i in range(len(final_sums)):
+        final_sums[i] = remove_tags(final_sums[i])
+
+    return final_sums
+
 def query_likelihood(query, abstract_sentences, bagofwords, CM):
     # Cleaner Function For Abstracts!
     def cleaner(document):
@@ -183,24 +200,6 @@ def query_likelihood(query, abstract_sentences, bagofwords, CM):
 
     ranking = sorted(ranking, key = lambda k: k[0], reverse = False)
     return abstract_sentences[ranking[-1][1]], abstract_sentences[ranking[-2][1]]
-
-def summarize(summaries):
-    final_sums = []
-    for summary in summaries:
-        text = ""
-        for j in summary:
-            text += j.capitalize()
-        inputs = tokenizer.encode("summarize: " + text, return_tensors='pt', max_length=512, truncation=True)
-        summary_ids = model.generate(inputs, max_length=60, min_length=20, length_penalty=5., num_beams=2)
-        summary = tokenizer.decode(summary_ids[0])
-        final_sums.append(summary)
-    
-    final_sums.pop()
-
-    for i in range(len(final_sums)):
-        final_sums[i] = remove_tags(final_sums[i])
-
-    return final_sums
 
 def remove_tags(sen):
     sen = re.sub('<pad>', '', sen)
