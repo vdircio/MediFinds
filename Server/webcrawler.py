@@ -12,8 +12,12 @@ from flask_cors import CORS, cross_origin
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.stem.porter import PorterStemmer
+from transformers import AutoTokenizer
+from transformers import AutoModelWithLMHead
+tokenizer = AutoTokenizer.from_pretrained('t5-base')
+model = AutoModelWithLMHead.from_pretrained('t5-base', return_dict=True)
+
 import re
-import torch
 
 
 app = Flask(__name__)
@@ -74,31 +78,6 @@ def scrape(url):
     return title, article_texts[0] if article_texts else ''
 
 
-def summarize(summaries):
-    final_sums = []
-    for summary in summaries:
-        text = ""
-        for j in i:
-            text += j.capitalize()
-        inputs = tokenizer.encode("summarize: " + text, return_tensors='pt', max_length=512, truncation=True)
-        summary_ids = model.generate(inputs, max_length=60, min_length=20, length_penalty=5., num_beams=2)
-        summary = tokenizer.decode(summary_ids[0])
-        final_sums.append(summary)
-    
-    final_sums.pop()
-
-    for sen in final_sums:
-       sen = remove_tags(sen)
-
-    return final_sums
-
-def remove_tags(sen):
-    sen = re.sub('<pad>', '', sen)
-    sen = re.sub('</s>', '', sen)
-    sen = re.sub('<', '', sen)
-    sen = sen.strip()
-    return sen
-
 def remove_headers(text):
     sentences = sent_tokenize(text)
     cleaned_sentences = []
@@ -112,7 +91,6 @@ def remove_headers(text):
             cleaned_sentences.append(sentence.strip())
     return cleaned_sentences
 
-
 def clean_words(words):
     # Cleans list of words by removing punctuation and digits
     cleaned = [re.sub(r'[^\w\s]', '', word) for word in words]
@@ -120,11 +98,11 @@ def clean_words(words):
     return cleaned
 
 def collection_LM(list_of_abs):
-    nltk.download('punkt')
+    # nltk.download('punkt')
     stemmer = PorterStemmer()
-    nltk.download('stopwords')
+    # nltk.download('stopwords')
     stop_words = set(stopwords.words('english'))
-    stemmer = PorterStemmer()
+    # stemmer = PorterStemmer()
     dictionary = {}
     for abstract in list_of_abs:
         for sentence in abstract:
@@ -141,73 +119,96 @@ def collection_LM(list_of_abs):
 
     # Sort dictionary by frequency in descending order and create a list of the most frequent words
     sorted_dict = dict(sorted(dictionary.items(), key=lambda x: x[1], reverse=True))
-    bag_of_words = list(sorted_dict)[:50]  # Limit to top 50 words
+    bag_of_words = list(sorted_dict.keys())[:50]  # Limit to top 50 words
 
     return sorted_dict, bag_of_words
 
 
 def query_likelihood(query, abstract_sentences, bagofwords, CM):
-  # Cleaner Function For Abstracts!
-  def cleaner(document):
-    # Replace all numbers with a space!
-    nonums = re.sub(r'[0-9]', ' ', document)
-    # Replace all punctuation with space!
-    nopunc = re.sub(r'[^\w\s]', ' ', nonums)
-    # Lowercase all remaining words!
-    lower = nopunc.lower()
-    # Get Rid of all stopwords and join remaining through a space!
-    stop_words = (stopwords.words('english'))
-    words = word_tokenize(lower)
-    filter = [w for w in words if not w.lower() in stop_words]
-    # Now Remove words of length 2 or below as they are either stopwords not
-    # included in NLTK (such as hi or us) or are gibberish (gt)!
-    filter = [w for w in filter if len(w) > 2]
-    filter = ' '.join(filter)
-    return filter
+    # Cleaner Function For Abstracts!
+    def cleaner(document):
+        nonums = re.sub(r'[0-9]', ' ', document)
+        nopunc = re.sub(r'[^\w\s]', ' ', nonums)
+        lower = nopunc.lower()
+        # Get Rid of all stopwords and join remaining through a space!
+        stop_words = (stopwords.words('english'))
+        words = word_tokenize(lower)
+        filter = [w for w in words if not w.lower() in stop_words]
+        # Now Remove words of length 2 or below as they are either stopwords not
+        # included in NLTK (such as hi or us) or are gibberish (gt)!
+        filter = [w for w in filter if len(w) > 2]
+        filter = ' '.join(filter)
+        return filter
 
-  # Query is a string of words
-  # file_name is the name of the file that will be used!
-  # Vocab is a list containing all vocab words
+    # Query is a string of words
+    # file_name is the name of the file that will be used!
+    # Vocab is a list containing all vocab words
 
-  # First Split Query into list of words
-  # This time we want to stem since vocab is stemmed!
-  words = query.split()
-  ps = PorterStemmer()
-  for i in range(len(words)):
-    words[i] = ps.stem(words[i])
+    # First Split Query into list of words
+    # This time we want to stem since vocab is stemmed!
+    words = query.split()
+    ps = PorterStemmer()
+    for i in range(len(words)):
+        words[i] = ps.stem(words[i])
 
-  # First we want to find doc/sentence length normalization n!
-  n = 0
-  for i in range(len(abstract_sentences)):
-      filtered_doc = cleaner(abstract_sentences[i])
-      length = len(filtered_doc.split())
-      n += length
-  n = n / len(abstract_sentences)
+    # First we want to find doc/sentence length normalization n!
+    n = 0
+    for i in range(len(abstract_sentences)):
+        filtered_doc = cleaner(abstract_sentences[i])
+        length = len(filtered_doc.split())
+        n += length
+    n = n / len(abstract_sentences)
 
-  # Our third step is to find the count of vocab words in the query
-  c_w_q = np.zeros(len(bagofwords))
-  for i in range(len(bagofwords)):
-    for j in range(len(words)):
-      if (words[j] == bagofwords[i]):
-        c_w_q[i] += 1
-  # We will utilize Jelinek Mercer Smoothing to help!
-  # Our lambda will be between 0 and 1
-  lambd = 0.4
-  # Now we can define our ranking list
-  ranking = []
-  for i in range(len(abstract_sentences)):
-    c_w_d = np.zeros(len(bagofwords))
-    p_w_C = np.zeros(len(bagofwords))
+    # Our third step is to find the count of vocab words in the query
+    c_w_q = np.zeros(len(bagofwords))
+    for i in range(len(bagofwords)):
+        for j in range(len(words)):
+            if (words[j] == bagofwords[i]):
+                c_w_q[i] += 1
+    # We will utilize Jelinek Mercer Smoothing to help!
+    # Our lambda will be between 0 and 1
+    lambd = 0.4
+    # Now we can define our ranking list
+    ranking = []
+    for i in range(len(abstract_sentences)):
+        c_w_d = np.zeros(len(bagofwords))
+        p_w_C = np.zeros(len(bagofwords))
 
-    filtered_doc = cleaner(abstract_sentences[i])
-    d = len(filtered_doc.split())
-    for j in range(len(bagofwords)):
-      c_w_d[j] += filtered_doc.count(bagofwords[j])
-      p_w_C[j] += CM[bagofwords[j]]
-    ranking.append((np.sum(c_w_q * np.log(1 + ((1 - lambd)/lambd) * (c_w_d/(d * p_w_C)))), i))
+        filtered_doc = cleaner(abstract_sentences[i])
+        d = len(filtered_doc.split())
+        for j in range(len(bagofwords)):
+            c_w_d[j] += filtered_doc.count(bagofwords[j])
+            p_w_C[j] += CM[bagofwords[j]]
+        ranking.append((np.sum(c_w_q * np.log(1 + ((1 - lambd)/lambd) * (c_w_d/(d * p_w_C)))), i))
 
-  ranking = sorted(ranking, key = lambda k: k[0], reverse = False)
-  return abstract_sentences[ranking[-1][1]], abstract_sentences[ranking[-2][1]]
+    ranking = sorted(ranking, key = lambda k: k[0], reverse = False)
+    return abstract_sentences[ranking[-1][1]], abstract_sentences[ranking[-2][1]]
+
+def summarize(summaries):
+    final_sums = []
+    for summary in summaries:
+        text = ""
+        for j in summary:
+            text += j.capitalize()
+        inputs = tokenizer.encode("summarize: " + text, return_tensors='pt', max_length=512, truncation=True)
+        summary_ids = model.generate(inputs, max_length=60, min_length=20, length_penalty=5., num_beams=2)
+        summary = tokenizer.decode(summary_ids[0])
+        final_sums.append(summary)
+    
+    final_sums.pop()
+
+    for i in range(len(final_sums)):
+        final_sums[i] = remove_tags(final_sums[i])
+
+    return final_sums
+
+def remove_tags(sen):
+    sen = re.sub('<pad>', '', sen)
+    sen = re.sub('</s>', '', sen)
+    sen = re.sub('<', '', sen)
+    sen = sen.strip()
+    return sen
 
 if __name__ == '__main__':  
-   app.run(debug=True)
+      app.run(host='0.0.0.0', port=5000)
+
