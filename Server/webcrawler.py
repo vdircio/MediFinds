@@ -44,23 +44,24 @@ def crawler(query):
     result = resource.list(q=query, cx='7312e2f7473b445d3').execute()
     links = [item['link'] for item in result['items']]
 
-    # dictionary holding titles and abstracts
-    titles_descriptions = {}
+    results = [] # list to hold link, title, and summary description
+    cleaned_abstracts = []
+
     for link in links:
         title, abstract = scrape(link)
-        titles_descriptions[title] = abstract
-
-    # clean and preprocess text
-    cleaned_abstracts = {title: remove_headers(abstract) for title, abstract in titles_descriptions.items()}
+        cleaned_abstract = remove_headers(abstract)
+        cleaned_abstracts.append(cleaned_abstract)
+        results.append({'link': link,'title': title})
 
     # Create a language model
-    CM, BOW = collection_LM(list(cleaned_abstracts.values()))
+    CM, BOW = collection_LM(list(cleaned_abstracts))
 
     # Query likelihood and summarize
-    summaries = {title: query_likelihood(query, abstract, BOW, CM) for title, abstract in cleaned_abstracts.items()} 
-    final_summaries = {title: summarize(summary) for title, summary in summaries.items()} 
+    for result, cleaned_abstract in zip(results, cleaned_abstracts):
+        summary = summarize(query_likelihood(query, cleaned_abstract, BOW, CM))
+        result['summary'] = summary  # Add summary to dictionary
 
-    return final_summaries
+    return results
 
 
 # scrapes web pages to get title and description
