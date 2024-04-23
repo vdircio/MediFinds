@@ -13,8 +13,10 @@ export const SearchResults = ({ results }) => {
             {Object.keys(results).map((id) => (
                 <div key={id}>
                     <a href={results[id]["link"]} target="_blank" rel="noopener noreferrer">
-                        <h3>{results[id]["title"]}</h3>
-                        <p>{results[id]["summary"]}</p>
+                        <div className='title_'><h4>{results[id]["title"]}</h4></div>
+                        <div className='desc'>
+                            <p>{results[id]["summary"]}</p>
+                        </div>
                     </a>
                 </div>
             ))}

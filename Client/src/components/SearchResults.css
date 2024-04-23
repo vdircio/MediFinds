@@ -1,12 +1,31 @@
 .results-list {
-    width: 55rem;
+    width: 70rem;
+    height: 20rem;
     background-color: white;
     display: flex;
     flex-direction: column;
     box-shadow: 0px 0px 8px #ddd;
     border-radius: 10px;
-    max-height: 300px;
     overflow-y: scroll;
     text-decoration: none;
     color: black;
+    text-align: center;
+    overflow-y: scroll;
+    scrollbar-width: none;
+}
+a {
+    text-decoration: none;
+    color: black;
+    padding: 2rem;
+}
+
+.title_ {
+    padding-left: .75rem;
+    padding-right: .75rem;
+}
+
+.desc {
+    margin: auto;
+    width: 80%;
+    text-align: center;
 }
