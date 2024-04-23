@@ -1,5 +1,5 @@
 .results-list {
-    width: 35rem;
+    width: 55rem;
     background-color: white;
     display: flex;
     flex-direction: column;
@@ -7,4 +7,6 @@
     border-radius: 10px;
     max-height: 300px;
     overflow-y: scroll;
+    text-decoration: none;
+    color: black;
 }
