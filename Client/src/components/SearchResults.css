@@ -1,6 +1,7 @@
 .results-list {
     width: 70rem;
-    height: 20rem;
+    /* height: 20rem; */
+    max-height: 20rem;
     background-color: white;
     display: flex;
     flex-direction: column;
@@ -28,4 +29,12 @@ a {
     margin: auto;
     width: 80%;
     text-align: center;
+}
+
+.bar {
+    height: 2px;
+    width: 75%;
+    color: #333;
+    margin: auto;
+    border-radius: 2px;
 }

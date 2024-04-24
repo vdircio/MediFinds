@@ -17,6 +17,7 @@ export const SearchResults = ({ results }) => {
                         <div className='desc'>
                             <p>{results[id]["summary"]}</p>
                         </div>
+                        <div className='bar'></div>
                     </a>
                 </div>
             ))}
