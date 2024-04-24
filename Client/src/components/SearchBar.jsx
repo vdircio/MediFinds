@@ -5,9 +5,13 @@ import { FaSearch } from 'react-icons/fa';
 
 export const SearchBar = ({ setResults }) => {
     const [input, setInput] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [marginTop, setMarginTop] = useState("2.5rem");
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
+            setMarginTop("-6.5rem");
+            setLoading(true);
             search(input);
         }
     };
@@ -26,18 +30,20 @@ export const SearchBar = ({ setResults }) => {
         })
         .catch(error => {
             console.error('Error searching:', error);
-        });
+        })
+        .finally(() => {
+            setLoading(false);
+        })
     };
 
     return (
-        <div className="orient">
+        <div className="orient" style={{marginTop: marginTop}}>
             <div>
                 <h1>MediFinds</h1>
-                <h2>A medical text summarization tool</h2>
-                <h3>Needs to be optimized (wait around a minute / under progress)</h3>
+                <h3>A medical text summarization tool</h3>
+                <h4>Needs to be optimized (wait around a minute / under progress)</h4>
             </div>
             <div className="input-wrapper">
-                <FaSearch id="search-icon"/>
                 <div className="gcse-search"></div>
                 <input 
                     placeholder="Type to search..." 
@@ -45,7 +51,9 @@ export const SearchBar = ({ setResults }) => {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                 />
+                <FaSearch id="search-icon"/>
             </div>
+            {loading && <div className="loader"></div>}
         </div>
         
     );

@@ -1,7 +1,7 @@
 .results-list {
-    width: 70rem;
+    width: 240%;
     /* height: 20rem; */
-    max-height: 20rem;
+    max-height: 28rem;
     background-color: white;
     display: flex;
     flex-direction: column;
@@ -10,7 +10,7 @@
     overflow-y: scroll;
     text-decoration: none;
     color: black;
-    text-align: center;
+    text-align: left;
     overflow-y: scroll;
     scrollbar-width: none;
 }
@@ -21,20 +21,23 @@ a {
 }
 
 .title_ {
-    padding-left: .75rem;
-    padding-right: .75rem;
+    padding-left: 1.75rem;
+    padding-right: 1.75rem;
+    margin-bottom: .3rem;
 }
 
 .desc {
     margin: auto;
-    width: 80%;
-    text-align: center;
+    text-align: left;
+    padding-left: 1.75rem;
+    padding-right: 1.75rem;
 }
 
 .bar {
     height: 2px;
-    width: 75%;
-    color: #333;
+    width: 100%;
     margin: auto;
+    margin-top: 2rem;
     border-radius: 2px;
+    background: linear-gradient(to left, transparent, #ddd, transparent);
 }
