@@ -17,7 +17,7 @@ export const SearchBar = ({ setResults }) => {
     };
 
     const search = (query) => {
-        fetch('http://localhost:5000/search', {  // Update the URL to point to your Flask server
+        fetch('http://209.38.130.148:5000/search', {  // Update the URL to point to your Flask server
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
