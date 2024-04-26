@@ -6,4 +6,4 @@ MediFinds is a text summarization tool designed  for summarizing medical researc
 
 ## Demo
 
-The website is free to use at http://209.38.130.148:4173/ but it will take some time to retrieve results given that data retrieval and summarization is done in time
+The website is free to use at http://209.38.130.148:4173/ but it will take some time to retrieve results given that data retrieval and summarization is done in real time
