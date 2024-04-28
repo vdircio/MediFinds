@@ -253,7 +253,6 @@ import json
 from googleapiclient.discovery import build
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
-import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.stem.porter import PorterStemmer
@@ -289,63 +288,25 @@ def crawler(query):
     result = resource.list(q=query, cx='7312e2f7473b445d3').execute()
     links = [item['link'] for item in result['items']]
 
-    results = {} # list to hold link, title, and summaries
+    results = [] # list to hold link, title, and summary description
     cleaned_abstracts = []
-    titles = []
 
     for link in links:
         title, abstract = scrape(link)
         cleaned_abstract = remove_headers(abstract)
         cleaned_abstracts.append(cleaned_abstract)
-        titles.append(title)
+        results.append({'link': link,'title': title})
 
     # Create a language model
     CM, BOW = collection_LM(list(cleaned_abstracts))
 
-    summaries = []
-    for i in cleaned_abstracts:
-        summaries.append(query_likelihood(query, i, BOW, CM))
+    # Query likelihood and summarize
+    for result, cleaned_abstract in zip(results, cleaned_abstracts):
+        summary = summarize(query_likelihood(query, cleaned_abstract, BOW, CM))
+        result['summary'] = summary  # Add summary to dictionary
 
-    final_summaries = []
-    for summary in summaries:
-        text = ""
-        for sentence in summary:
-            text += sentence.capitalize()
-            inputs = tokenizer.encode("summarize: " + text,
-                                      return_tensors='pt',
-                                      max_length=512,
-                                      truncation=True)
-            summary_ids = model.generate(inputs, max_length=150, min_length=80, length_penalty=5., num_beams=2)
-            final_summary = tokenizer.decode(summary_ids[0])
-            final_summary = final_summary.replace("<pad>", "").replace("</s>", "")
-            final_summary = capitalize_sentences(final_summary)
-            final_summary = remove_unfinished(final_summary)
-            final_summaries.append(final_summary)
-    
-    # for i in range(len(final_summaries)):
-    #     final_summaries[i] = remove_unfinished
-
-    for link, title, final_summary in zip(links, titles, final_summaries):
-        results[link] = {'link': link, 'title': title, 'summary': final_summary}
-
-    results.pop(links[-1])
     return results
 
-def remove_unfinished(sentence):
-    seq = sentence.split()
-    final_index = 0
-    for i in range(len(seq)):
-      if "." in seq[i]:
-        final_index = i
-    return " ".join(seq[: final_index + 1])
-
-def capitalize_sentences(text):
-    seq = text.split()
-    seq[0] = seq[0].capitalize()
-    for i in range(len(seq)):
-      if "." in seq[i] and i < len(seq) - 1:
-        seq[i + 1] = seq[i + 1].capitalize()
-    return " ".join(seq)
 
 # scrapes web pages to get title and description
 def scrape(url):
@@ -361,14 +322,18 @@ def scrape(url):
     return title, article_texts[0] if article_texts else ''
 
 
-
 def remove_headers(text):
-    headers = ["Abstract", "Background", "Conclusion", "Methods"]
-    for header in headers:
-        text = text.replace(header, '')
-    sentences = nltk.sent_tokenize(text.replace('\n', ' '))
-    
-    return sentences
+    sentences = sent_tokenize(text)
+    cleaned_sentences = []
+    for sentence in sentences:
+        pos_newline = sentence.find('\n')
+        if pos_newline != -1:
+            sentence = sentence[pos_newline + 1:]
+        sentence = sentence.replace('\n', ' ')
+        sentence = re.sub(r'[^a-zA-Z\s]', '', sentence).lower()
+        if sentence.strip():
+            cleaned_sentences.append(sentence.strip())
+    return cleaned_sentences
 
 def clean_words(words):
     # Cleans list of words by removing punctuation and digits
@@ -402,14 +367,30 @@ def collection_LM(list_of_abs):
 
     return sorted_dict, bag_of_words
 
+
+def summarize(summaries):
+    final_sums = []
+    for summary in summaries:
+        text = ""
+        for j in summary:
+            text += j.capitalize()
+        inputs = tokenizer.encode("summarize: " + text, return_tensors='pt', max_length=512, truncation=True)
+        summary_ids = model.generate(inputs, max_length=60, min_length=20, length_penalty=5., num_beams=2)
+        summary = tokenizer.decode(summary_ids[0])
+        final_sums.append(summary)
+    
+    # final_sums.pop()
+
+    for i in range(len(final_sums)):
+        final_sums[i] = remove_tags(final_sums[i])
+
+    return final_sums
+
 def query_likelihood(query, abstract_sentences, bagofwords, CM):
     # Cleaner Function For Abstracts!
     def cleaner(document):
-        # Replace all numbers with a space!
         nonums = re.sub(r'[0-9]', ' ', document)
-        # Replace all punctuation with space!
         nopunc = re.sub(r'[^\w\s]', ' ', nonums)
-        # Lowercase all remaining words!
         lower = nopunc.lower()
         # Get Rid of all stopwords and join remaining through a space!
         stop_words = (stopwords.words('english'))
@@ -438,7 +419,7 @@ def query_likelihood(query, abstract_sentences, bagofwords, CM):
         filtered_doc = cleaner(abstract_sentences[i])
         length = len(filtered_doc.split())
         n += length
-    n = n / len(abstract_sentences) if len(abstract_sentences) != 0 else 0
+    n = n / len(abstract_sentences)
 
     # Our third step is to find the count of vocab words in the query
     c_w_q = np.zeros(len(bagofwords))
@@ -451,28 +432,19 @@ def query_likelihood(query, abstract_sentences, bagofwords, CM):
     lambd = 0.4
     # Now we can define our ranking list
     ranking = []
-    for sentence in abstract_sentences:
-        filtered_doc = cleaner(sentence)
-        doc_words = filtered_doc.split()
-        d = len(doc_words)
-        if d == 0:
-            continue  # Skip empty documents to avoid division by zero
-        
-        c_w_d = np.array([doc_words.count(word) for word in bagofwords])
-        p_w_C = np.array([CM.get(word, 0) for word in bagofwords])
+    for i in range(len(abstract_sentences)):
+        c_w_d = np.zeros(len(bagofwords))
+        p_w_C = np.zeros(len(bagofwords))
 
-        # Safe divide and safe log calculation to avoid runtime warnings
-        with np.errstate(divide='ignore', invalid='ignore'):
-            term_freq = c_w_d / (d * p_w_C)
-            log_terms = np.log(1 + ((1 - lambd) / lambd) * term_freq)
-            log_terms[np.isnan(log_terms)] = 0  # Replace NaNs with 0
+        filtered_doc = cleaner(abstract_sentences[i])
+        d = len(filtered_doc.split())
+        for j in range(len(bagofwords)):
+            c_w_d[j] += filtered_doc.count(bagofwords[j])
+            p_w_C[j] += CM[bagofwords[j]]
+        ranking.append((np.sum(c_w_q * np.log(1 + ((1 - lambd)/lambd) * (c_w_d/(d * p_w_C)))), i))
 
-        ranking.append((np.sum(c_w_q * log_terms), sentence))
-
-    ranking.sort(key=lambda x: x[0], reverse=True)
-
-    # Return the top two sentences or abstracts, as per the original intent
-    return [x[1] for x in ranking[:2]]
+    ranking = sorted(ranking, key = lambda k: k[0], reverse = False)
+    return abstract_sentences[ranking[-1][1]], abstract_sentences[ranking[-2][1]]
 
 def remove_tags(sen):
     sen = re.sub('<pad>', '', sen)
