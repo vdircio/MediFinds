@@ -20,7 +20,7 @@ model = AutoModelWithLMHead.from_pretrained('t5-base', return_dict=True)
 import re
 
 
-app = Flask(__name__)
+app = Flask(__name__)z
 cors = CORS(app)
 
 @app.route('/search', methods=['POST', 'OPTIONS'])
