@@ -9,17 +9,20 @@ import json
 from googleapiclient.discovery import build
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
+from requests.exceptions import RequestException
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.stem.porter import PorterStemmer
 from transformers import AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM
 from transformers import AutoModelWithLMHead
 tokenizer = AutoTokenizer.from_pretrained('t5-base')
-model = AutoModelWithLMHead.from_pretrained('t5-base', return_dict=True)
+model = AutoModelForSeq2SeqLM.from_pretrained('t5-base', return_dict=True)
+# model = AutoModelWithLMHead.from_pretrained('t5-base', return_dict=True)
 import re
-from requests.exceptions import RequestException
-from multiprocessing import Pool
+import threading
+
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -31,7 +34,7 @@ def search():
     if not query:
        return jsonify({'error': 'No query provided'}), 400
 
-    tries = 3
+    tries = 5
     for _ in range(tries):
         try:
             results = crawler(query)
@@ -53,45 +56,71 @@ def crawler(query):
     results = {} # list to hold link, title, and summaries
     cleaned_abstracts = []
     titles = []
+    titles = []
+    threads = []
 
-    for link in links:
+    def fetch_and_process(link):
         title, abstract = scrape(link)
         cleaned_abstract = remove_headers(abstract)
         cleaned_abstracts.append(cleaned_abstract)
         titles.append(title)
 
+    for link in links:
+        thread = threading.Thread(target=fetch_and_process, args=(link,))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
     # Create a language model
     CM, BOW = collection_LM(list(cleaned_abstracts))
 
     summaries = []
-    for i in cleaned_abstracts:
-        summaries.append(query_likelihood(query, i, BOW, CM))
+    summary_threads = []
 
-    # final_summaries = []
-    # for summary in summaries:
-    with Pool(processes=os.cpu_count()) as pool:
-        final_summaries = pool.map(generate_summary, summaries)
+    def summarize_abstract(abstract):
+        summaries.append(query_likelihood(query, abstract, BOW, CM))
+    
+    for abstract in cleaned_abstracts:
+        thread = threading.Thread(target=summarize_abstract, args=(abstract,))
+        summary_threads.append(thread)
+        thread.start()
+
+    for thread in summary_threads:
+        thread.join()
+
+    final_summaries = []
+    final_summary_threads = []
+
+    def generate_final_summary(summary):
+        text = ""
+        for sentence in summary:
+            text += sentence.capitalize()
+            inputs = tokenizer.encode("summarize: " + text,
+                                      return_tensors='pt',
+                                      max_length=512,
+                                      truncation=True)
+            summary_ids = model.generate(inputs, max_length=150, min_length=80, length_penalty=5., num_beams=2)
+            final_summary = tokenizer.decode(summary_ids[0])
+            final_summary = final_summary.replace("<pad>", "").replace("</s>", "")
+            final_summary = capitalize_sentences(final_summary)
+            final_summary = remove_unfinished(final_summary)
+            final_summaries.append(final_summary)
+
+    for summary in summaries:
+        thread = threading.Thread(target=generate_final_summary, args=(summary,))
+        final_summary_threads.append(thread)
+        thread.start()
+
+    for thread in final_summary_threads:
+        thread.join()
 
     for link, title, final_summary in zip(links, titles, final_summaries):
         results[link] = {'link': link, 'title': title, 'summary': final_summary}
 
     results.pop(links[-1])
     return results
-
-def generate_summary(summary):
-    text = ""
-    for sentence in summary:
-        text += sentence.capitalize()
-        inputs = tokenizer.encode("summarize: " + text,
-                                    return_tensors='pt',
-                                    max_length=512,
-                                    truncation=True)
-        summary_ids = model.generate(inputs, max_length=150, min_length=80, length_penalty=5., num_beams=2)
-        final_summary = tokenizer.decode(summary_ids[0])
-        final_summary = final_summary.replace("<pad>", "").replace("</s>", "")
-        final_summary = capitalize_sentences(final_summary)
-        final_summary = remove_unfinished(final_summary)
-    return final_summary
 
 def remove_unfinished(sentence):
     seq = sentence.split()
@@ -122,8 +151,6 @@ def scrape(url):
 
     return title, article_texts[0] if article_texts else ''
 
-
-
 def remove_headers(text):
     headers = ["Abstract", "Background", "Conclusion", "Methods"]
     for header in headers:
@@ -153,7 +180,7 @@ def collection_LM(list_of_abs):
                 if stemmed_word not in stop_words and len(stemmed_word) > 2:
                     dictionary[stemmed_word] = dictionary.get(stemmed_word, 0) + 1
 
-    # Calculate probabilities instead of frequencies
+    # Calculate babilities instead of frequencies
     total_freq = sum(dictionary.values())
     for word in dictionary:
         dictionary[word] /= total_freq
@@ -245,4 +272,3 @@ def remove_tags(sen):
 
 if __name__ == '__main__':  
       app.run(host='0.0.0.0', port=5000)
-

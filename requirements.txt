@@ -1,0 +1,10 @@
+numpy
+pandas
+beautifulsoup4
+requests
+google-api-python-client
+Flask
+flask-cors
+nltk
+transformers
+torch
